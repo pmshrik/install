@@ -1,23 +1,25 @@
 #!/bin/bash
 
-sudo apt install
+echo "STEP 1: Update the Ubuntu && install - 'unzip' and 'jdk-17'"
+
+sudo apt update -y && sudo apt install -y unzip openjdk-17-jdk
+
+echo "STEP 2: Downloading apache-maven-3.9.9-bin.zip and unzipping it"
 
 wget https://dlcdn.apache.org/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.zip
-
-sudo apt install -y unzip
 
 unzip apache-maven-3.9.9-bin.zip
 
 cd apache-maven-3.9.9-bin
 
-cd bin
+echo "STEP 3: Create symbolic link of mvn binary in $PATH(load the command)"
 
-pwd
+sudo ln -s /home/ubuntu/apache-maven-3.9.9/bin/mvn /usr/local/sbin/mvn
 
-echo $PATH
+sudo chmod 777 /usr/local/sbin/mvn
 
- sudo ln -s /home/ubuntu/apache-maven-3.9.9/bin/mvn /usr/local/sbin/mvn
+echo
 
- sudo chmod 777 /usr/local/sbin/mvn
+echo "______________________mvn and jdk installed______________________"
 
 
