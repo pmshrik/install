@@ -1,0 +1,25 @@
+#!/bin/bash
+
+sudo apt install
+
+wget https://dlcdn.apache.org/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.zip
+
+sudo apt install -y unzip
+
+unzip apache-maven-3.9.9-bin.zip
+
+cd apache-maven-3.9.9-bin
+
+cd bin
+
+pwd
+
+echo $PATH
+
+ sudo ln -s /home/ubuntu/apache-maven-3.9.9/bin/mvn /usr/local/sbin/mvn
+
+ sudo chmod 777 /usr/local/sbin/mvn
+
+which mvn
+
+mvn --version
