@@ -20,6 +20,4 @@ echo $PATH
 
  sudo chmod 777 /usr/local/sbin/mvn
 
-which mvn
 
-mvn --version
