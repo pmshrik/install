@@ -1,7 +1,10 @@
 #!/bin/bash
 
 # Variables
-MASTER_IP="192.168.1.10"  # Replace with your master node's IP
+MASTER_IP=""              # Will be set by user input
+MASTER_HOSTNAME="master-node"
+WORKER_IPS=()             # Will be set by user input
+WORKER_HOSTNAMES=("worker-node-1" "worker-node-2")  # Adjust if you have more workers
 POD_NETWORK_CIDR="192.168.0.0/16"
 KUBE_VERSION="1.28.0"     # Replace with your desired Kubernetes version
 CONTAINER_RUNTIME=""      # Will be set to "docker" or "containerd"
@@ -101,8 +104,29 @@ install_dependencies() {
     sudo apt-mark hold kubelet kubeadm kubectl
 }
 
+# Function to add private IPs to /etc/hosts
+add_private_ips() {
+    echo "Adding private IPs to /etc/hosts..."
+
+    # Add master node
+    echo "$MASTER_IP $MASTER_HOSTNAME" | sudo tee -a /etc/hosts
+
+    # Add worker nodes
+    for i in "${!WORKER_IPS[@]}"; do
+        echo "${WORKER_IPS[$i]} ${WORKER_HOSTNAMES[$i]}" | sudo tee -a /etc/hosts
+    done
+}
+
 # Main script
 echo "Kubernetes Cluster Setup Script"
+
+# Prompt for private IPs
+read -p "Enter the private IP of the master node: " MASTER_IP
+read -p "Enter the private IP of worker node 1: " WORKER_IPS[0]
+read -p "Enter the private IP of worker node 2: " WORKER_IPS[1]
+
+# Add private IPs to /etc/hosts
+add_private_ips
 
 # Prompt user to choose container runtime
 echo "Choose the container runtime:"
