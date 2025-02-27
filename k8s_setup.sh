@@ -7,9 +7,11 @@ set -e  # Exit on any error
 # -------------------------------
 KUBERNETES_VERSION="1.29"
 POD_NETWORK_CIDR="192.168.0.0/16"
-MASTER_IP="192.168.1.100"  # Change this to match your master node's IP
+CALICO_VERSION="v3.25"
+MASTER_IP="192.168.1.100"  # Change to your master node's IP
+JOIN_COMMAND_FILE="/root/kubeadm-join-command.txt"
 
-# Detect if the current node is the Master or Worker
+# Detect if the current node is Master or Worker
 if [[ "$HOSTNAME" == "master-node" ]]; then
     IS_MASTER=true
 else
@@ -17,10 +19,19 @@ else
 fi
 
 # -------------------------------
-# STEP 1: Update & Upgrade System
+# STEP 1: Update & Upgrade System and Restart Outdated Daemons
 # -------------------------------
-echo ">>> Updating system..."
+echo ">>> Updating system packages..."
 sudo apt update && sudo apt upgrade -y
+
+echo ">>> Checking for outdated daemons..."
+if command -v needrestart &> /dev/null; then
+    sudo needrestart -r a
+else
+    echo ">>> 'needrestart' not found, installing..."
+    sudo apt install -y needrestart
+    sudo needrestart -r a
+fi
 
 # -------------------------------
 # STEP 2: Disable Swap (Kubernetes Requirement)
@@ -32,7 +43,7 @@ sudo sed -i '/ swap / s/^/#/' /etc/fstab
 # -------------------------------
 # STEP 3: Load Kernel Modules
 # -------------------------------
-echo ">>> Loading kernel modules..."
+echo ">>> Configuring kernel modules..."
 cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
 overlay
 br_netfilter
@@ -68,7 +79,6 @@ sudo systemctl enable containerd
 # STEP 5: Install Kubernetes Components
 # -------------------------------
 echo ">>> Installing Kubernetes components..."
-sudo apt update
 sudo apt install -y apt-transport-https ca-certificates curl
 
 # Add Kubernetes repository
@@ -95,29 +105,27 @@ if [ "$IS_MASTER" = true ]; then
     sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
     echo ">>> Deploying Calico network..."
-    kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.26/manifests/calico.yaml
+    kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/$CALICO_VERSION/manifests/calico.yaml
     
     echo ">>> Kubernetes Master Node setup is complete!"
     
     echo ">>> Saving join command for Worker Nodes..."
-    kubeadm token create --print-join-command | tee /root/kubeadm-join-command.txt
-    
+    kubeadm token create --print-join-command | tee $JOIN_COMMAND_FILE
+
 else
     # -------------------------------
     # STEP 7: Kubernetes Setup (Worker Node)
     # -------------------------------
     echo ">>> Checking if worker node was previously added..."
-    if kubeadm reset -f; then
-        echo ">>> Worker node reset successfully."
-    else
-        echo ">>> No previous Kubernetes setup detected, proceeding..."
-    fi
-
+    sudo kubeadm reset -f || echo ">>> No previous Kubernetes setup detected, proceeding..."
+    
     echo ">>> Waiting for Master Node setup..."
     sleep 10
     
+    echo ">>> Fetching join command from Master Node..."
+    JOIN_COMMAND=$(ssh -o StrictHostKeyChecking=no ubuntu@$MASTER_IP "cat $JOIN_COMMAND_FILE")
+    
     echo ">>> Joining Kubernetes cluster as Worker Node..."
-    JOIN_COMMAND=$(ssh -o StrictHostKeyChecking=no ubuntu@$MASTER_IP "cat /root/kubeadm-join-command.txt")
     sudo $JOIN_COMMAND
     
     echo ">>> Worker Node setup is complete!"
