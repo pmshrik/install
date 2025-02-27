@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e  # Exit on error
+set -e  # Exit on any error
 
 # -------------------------------
 # CONFIGURATION VARIABLES
@@ -23,7 +23,7 @@ echo ">>> Updating system..."
 sudo apt update && sudo apt upgrade -y
 
 # -------------------------------
-# STEP 2: Disable Swap
+# STEP 2: Disable Swap (Kubernetes Requirement)
 # -------------------------------
 echo ">>> Disabling swap..."
 sudo swapoff -a
@@ -50,7 +50,7 @@ EOF
 sudo sysctl --system
 
 # -------------------------------
-# STEP 4: Install Container Runtime (Containerd)
+# STEP 4: Install Container Runtime (containerd)
 # -------------------------------
 echo ">>> Installing containerd..."
 sudo apt install -y containerd
@@ -78,6 +78,7 @@ echo "deb https://pkgs.k8s.io/core:/stable:/v$KUBERNETES_VERSION/deb/ /" | sudo 
 
 sudo apt update
 sudo apt install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl  # Prevent unintended upgrades
 sudo systemctl enable kubelet
 
 # -------------------------------
@@ -98,18 +99,25 @@ if [ "$IS_MASTER" = true ]; then
     
     echo ">>> Kubernetes Master Node setup is complete!"
     
-    echo ">>> Run the following command on Worker Nodes:"
-    kubeadm token create --print-join-command
+    echo ">>> Saving join command for Worker Nodes..."
+    kubeadm token create --print-join-command | tee /root/kubeadm-join-command.txt
     
 else
     # -------------------------------
     # STEP 7: Kubernetes Setup (Worker Node)
     # -------------------------------
+    echo ">>> Checking if worker node was previously added..."
+    if kubeadm reset -f; then
+        echo ">>> Worker node reset successfully."
+    else
+        echo ">>> No previous Kubernetes setup detected, proceeding..."
+    fi
+
     echo ">>> Waiting for Master Node setup..."
     sleep 10
     
     echo ">>> Joining Kubernetes cluster as Worker Node..."
-    JOIN_COMMAND=$(ssh ubuntu@$MASTER_IP "kubeadm token create --print-join-command")
+    JOIN_COMMAND=$(ssh -o StrictHostKeyChecking=no ubuntu@$MASTER_IP "cat /root/kubeadm-join-command.txt")
     sudo $JOIN_COMMAND
     
     echo ">>> Worker Node setup is complete!"
